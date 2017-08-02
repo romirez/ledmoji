@@ -9,6 +9,7 @@ from slackclient import SlackClient
 from autobahn.twisted.websocket import WebSocketServerProtocol, \
     WebSocketServerFactory
 
+listeners = []
 
 class MyServerProtocol(WebSocketServerProtocol):
 
@@ -22,13 +23,22 @@ class MyServerProtocol(WebSocketServerProtocol):
         if isBinary:
             print("Binary message received: {0} bytes".format(len(payload)))
         else:
-            print("Text message received: {0}".format(payload.decode('utf8')))
-
-        # echo back message verbatim
-        self.sendMessage(payload, isBinary)
+	    if (payload.decode('utf8') == "listen"):
+		listeners.append(self)
+		print("added listener")
+	    else:
+	        print("Text message received: {0}".format(payload.decode('utf8')))
+        	emojido = json.loads(payload.decode('utf8'))
+                print("emojido: " + str(emojido))
+                for l in listeners:
+		    l.sendMessage(payload, isBinary)
 
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
+	for i in range(len(listeners)):
+	    if (listeners[i] == self):
+		listeners.remove(i)
+		break
 
 if __name__ == '__main__':
 

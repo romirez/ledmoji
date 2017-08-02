@@ -11,8 +11,7 @@ class MyClientProtocol(WebSocketClientProtocol):
         print("WebSocket connection open.")
 
         def hello():
-            self.sendMessage(u"Hello, world!".encode('utf8'))
-            self.sendMessage(b"\x00\x01\x03\x04", isBinary=True)
+            self.sendMessage(u"{}".encode('utf8'))
             self.factory.reactor.callLater(1, hello)
 
         # start sending messages every second ..
