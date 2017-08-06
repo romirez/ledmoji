@@ -3,6 +3,7 @@
 import urllib2, urllib, os, sys, commands, json
 import shlex, subprocess
 from autobahn.twisted.websocket import WebSocketClientProtocol, WebSocketClientFactory
+from twisted.internet.protocol import ReconnectingClientFactory
 
 brightness = 75
 imageurl = ""
@@ -24,7 +25,7 @@ def update(emojido):
                 process.kill()
                 process = None
             print "/home/pi/led-image-viewer --led-brightness=" + str(brightness) + " --led-gpio-mapping=adafruit-hat-pwm /home/pi/emoji &\n"
-            process = subprocess.Popen(shlex.split("/home/pi/led-image-viewer --led-brightness=" + str(brightness) + " --led-gpio-mapping=adafruit-hat-pwm /home/pi/emoji &"))
+            process = subprocess.Popen(shlex.split("/home/pi/led-image-viewer --led-brightness=" + str(brightness) + " --led-gpio-mapping=adafruit-hat-pwm --led-pwm-lsb-nanoseconds 200 /home/pi/emoji &"))
         return
     elif (emojido["command"] == "text"):
         if (process != None):
@@ -62,7 +63,7 @@ class MyClientProtocol(WebSocketClientProtocol):
 
     def onOpen(self):
         print("WebSocket connection open.")
-        self.sendMessage(u"listen".encode('utf8'))
+        self.sendMessage(u"listen vancouver".encode('utf8'))
 
     def onMessage(self, payload, isBinary):
         print("Text message received: {0}".format(payload.decode('utf8')))
@@ -70,6 +71,23 @@ class MyClientProtocol(WebSocketClientProtocol):
 
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
+
+class EmojiClientFactory(ReconnectingClientFactory, WebSocketClientFactory):
+
+        protocol = MyClientProtocol
+
+        maxDelay = 20
+
+        def startedConnecting(self, connector):
+            print('Started to connect.')
+
+        def clientConnectionLost(self, connector, reason):
+            print('Lost connection. Reason: {}'.format(reason))
+            ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
+
+        def clientConnectionFailed(self, connector, reason):
+            print('Connection failed. Reason: {}'.format(reason))
+            ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
 
 if __name__ == '__main__':
     import sys
@@ -79,8 +97,12 @@ if __name__ == '__main__':
 
     log.startLogging(sys.stdout)
 
-    factory = WebSocketClientFactory(u"ws://romirez.com:9000")
+    emojido = {'command': 'text', 'value': 'READY'}
+    update(emojido)
+
+    factory = EmojiClientFactory(u"ws://romirez.com:9000")
     factory.protocol = MyClientProtocol
 
     reactor.connectTCP("romirez.com", 9000, factory)
     reactor.run()
+
