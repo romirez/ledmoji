@@ -8,36 +8,39 @@ import re
 from slackclient import SlackClient
 from autobahn.twisted.websocket import WebSocketServerProtocol, \
     WebSocketServerFactory
+import logging
 
-listeners = []
+listeners = {}
+
+logging.basicConfig(filename='/var/log/emojiserver.log',level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class MyServerProtocol(WebSocketServerProtocol):
 
     def onConnect(self, request):
-        print("Client connecting: {0}".format(request.peer))
+        logger.info("Client connecting: {0}".format(request.peer))
 
     def onOpen(self):
-        print("WebSocket connection open.")
+        logger.info("WebSocket connection open.")
 
     def onMessage(self, payload, isBinary):
         if isBinary:
-            print("Binary message received: {0} bytes".format(len(payload)))
+            logger.info("Binary message received: {0} bytes".format(len(payload)))
         else:
-	    if (payload.decode('utf8') == "listen"):
-		listeners.append(self)
-		print("added listener")
+	    if (payload.decode('utf8')[:6] == "listen"):
+		listeners[payload.decode('utf8')[7:]] = self
+		logger.info("added listener " + payload.decode('utf8')[7:])
 	    else:
-	        print("Text message received: {0}".format(payload.decode('utf8')))
+	        logger.info("Text message received: {0}".format(payload.decode('utf8')))
         	emojido = json.loads(payload.decode('utf8'))
-                print("emojido: " + str(emojido))
-                for l in listeners:
+                for l in listeners.values():
 		    l.sendMessage(payload, isBinary)
 
     def onClose(self, wasClean, code, reason):
-        print("WebSocket connection closed: {0}".format(reason))
-	for i in range(len(listeners)):
-	    if (listeners[i] == self):
-		listeners.remove(i)
+        logger.info("WebSocket connection closed: {0}".format(reason))
+	for i in range(len(listeners.values())):
+	    if (listeners.values()[i] == self):
+		del listeners[listeners.key()[i]]
 		break
 
 if __name__ == '__main__':
@@ -47,7 +50,9 @@ if __name__ == '__main__':
     from twisted.python import log
     from twisted.internet import reactor
 
-    log.startLogging(sys.stdout)
+    #log.startLogging(open("/var/log/emojiserver.log", "w"))
+    observer = log.PythonLoggingObserver()
+    observer.start()
 
     factory = WebSocketServerFactory(u"ws://127.0.0.1:9000")
     factory.protocol = MyServerProtocol
