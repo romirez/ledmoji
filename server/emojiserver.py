@@ -12,7 +12,7 @@ import logging
 
 listeners = {}
 
-logging.basicConfig(filename='/var/log/emojiserver.log',level=logging.INFO)
+logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s', filename='/var/log/emojiserver.log',level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class MyServerProtocol(WebSocketServerProtocol):
@@ -31,10 +31,15 @@ class MyServerProtocol(WebSocketServerProtocol):
 		listeners[payload.decode('utf8')[7:]] = self
 		logger.info("added listener " + payload.decode('utf8')[7:])
 	    else:
-	        logger.info("Text message received: {0}".format(payload.decode('utf8')))
         	emojido = json.loads(payload.decode('utf8'))
-                for l in listeners.values():
-		    l.sendMessage(payload, isBinary)
+		logger.info("Command received: {0}".format(str(emojido)))
+		try:
+		    listeners[emojido["channel"]].sendMessage(payload, isBinary)
+		except:
+		    logger.info("Couldn't find listener" + emojido["channel"])
+                
+		#for l in listeners.values():
+		#    l.sendMessage(payload, isBinary)
 
     def onClose(self, wasClean, code, reason):
         logger.info("WebSocket connection closed: {0}".format(reason))
@@ -56,6 +61,7 @@ if __name__ == '__main__':
 
     factory = WebSocketServerFactory(u"ws://127.0.0.1:9000")
     factory.protocol = MyServerProtocol
+    factory.setProtocolOptions(autoPingInterval=5, autoPingTimeout=2)
     # factory.setProtocolOptions(maxConnections=2)
 
     # note to self: if using putChild, the child must be bytes...
